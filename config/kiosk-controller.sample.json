@@ -1,0 +1,31 @@
+{
+  "aida_port": 1111,
+  "aida_health_path": "/api?sensors=STIME",
+  "check_interval_sec": 2.0,
+
+  "fails_to_down": 3,
+  "oks_to_up": 2,
+  "recovery_window_sec": 12.0,
+
+  "discovery_budget_sec": 10.0,
+  "discovery_cooldown_sec": 90.0,
+  "discovery_workers": 64,
+
+  "connect_timeout_sec": 0.45,
+  "read_timeout_sec": 0.75,
+
+  "firefox_startup_grace_sec": 10.0,
+  "firefox_kill_timeout_sec": 4.0,
+  "nav_cooldown_sec": 2.0,
+  "nav_fails_to_restart": 3,
+  "window_missing_to_restart_sec": 20.0,
+
+  "default_display": ":0",
+  "default_xauthority": "/home/user/.Xauthority",
+
+  "cache_dir": "/home/user/.cache/aida64",
+  "cache_file": "/home/user/.cache/aida64/target_ips.json",
+  "profile_dir": "/home/user/.mozilla/kiosk-profile",
+  "splash_file": "/home/user/.cache/aida64/loading.html",
+  "log_file": "/home/user/.cache/aida64/kiosk_controller.log"
+}

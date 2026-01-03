@@ -1,0 +1,19 @@
+[Unit]
+Description=Kiosk Controller (AIDA64 + Firefox Kiosk)
+Wants=network-online.target
+After=network-online.target graphical.target
+
+[Service]
+Type=simple
+User=user
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/user/.Xauthority
+EnvironmentFile=-/etc/default/kiosk-controller
+
+WorkingDirectory=/opt/kiosk-controller
+ExecStart=/opt/kiosk-controller/venv/bin/kiosk-controller --config /etc/kiosk-controller.json
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
