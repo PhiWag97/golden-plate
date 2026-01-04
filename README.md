@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # golden-plate
 Kiosk Controller for Banana Pi: Search for a Website in a LAN-Network (Healthcheck + Discovery)
 =======
@@ -11,4 +10,4 @@ Kiosk Controller für Banana Pi: findet einen AIDA64 RemoteSensor im LAN (Health
 git clone <DEIN-REPO-URL> kiosk-controller
 cd kiosk-controller
 sudo ./scripts/install.sh
->>>>>>> 780e1ee (Initial commit)
+
