@@ -19,7 +19,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, get_type_hints
+from typing import Any, Dict, List, Optional, get_type_hints, get_origin, get_args
 
 
 # ----------------------------
@@ -237,6 +237,14 @@ _ENV_MAP: Dict[str, str] = {
 
 
 def _coerce_value(field_type: Any, value: Any) -> Any:
+    # Optional/Union behandeln (z.B. Optional[Path])
+    origin = get_origin(field_type)
+    if origin is not None:
+        args = [a for a in get_args(field_type) if a is not type(None)]
+        # Wenn Union/Optional genau einen sinnvollen Typ enthält, darauf reduzieren
+        if len(args) == 1:
+            field_type = args[0]
+
     if field_type is Path:
         return Path(str(value))
     if field_type is int:
@@ -249,14 +257,14 @@ def _coerce_value(field_type: Any, value: Any) -> Any:
 
 
 def apply_overrides(cfg: Config, overrides: Dict[str, Any]) -> Config:
-    # Wichtig: echte Typen auflösen (future-annotations -> sonst sind es Strings)
-    fields = get_type_hints(Config, globalns=globals(), localns=locals())
-
+    # Wichtig: echte Typen auflösen (Future annotations -> echte Typobjekte)
+    hints = get_type_hints(Config)
     updates: Dict[str, Any] = {}
+
     for k, v in overrides.items():
-        if k not in fields:
+        if k not in hints:
             continue
-        updates[k] = _coerce_value(fields[k], v)
+        updates[k] = _coerce_value(hints[k], v)
 
     if not updates:
         return cfg
