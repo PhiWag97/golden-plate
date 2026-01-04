@@ -19,7 +19,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, get_args, get_origin, get_type_hints
+
 
 
 # ----------------------------
@@ -239,7 +240,7 @@ _ENV_MAP: Dict[str, str] = {
 def _coerce_value(field_type: Any, value: Any) -> Any:
     # Optional/Union behandeln (z.B. Optional[Path])
     origin = get_origin(field_type)
-    if origin is Union:
+    if origin is not None:
         args = [a for a in get_args(field_type) if a is not type(None)]
         # Wenn Union/Optional genau einen sinnvollen Typ enthält, darauf reduzieren
         if len(args) == 1:
@@ -255,20 +256,30 @@ def _coerce_value(field_type: Any, value: Any) -> Any:
         return str(value)
     return value
 
-
-def apply_overrides(cfg: Config, overrides: Dict[str, Any]) -> Config:
-    # Wichtig: echte Typen auflösen (Future annotations -> echte Typobjekte)
-    hints = get_type_hints(Config)
-    updates: Dict[str, Any] = {}
-
-    for k, v in overrides.items():
+def normalize_loaded_config(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Einmalige Normalisierung: JSON/Env liefern Strings -> wir wandeln anhand der
+    echten (aufgelösten) Typ-Hints von Config.
+    """
+    try:
+        hints = get_type_hints(Config)  # löst Future-Annotations zu echten Typen auf
+    except Exception:
+        return {}
+    
+    out: Dict[str, Any] = {}
+    for k, v in data.items():
         if k not in hints:
             continue
-        updates[k] = _coerce_value(hints[k], v)
+        try:
+            out[k] = _coerce_value(hints[k], v)
+        except Exception:
+            # bewusst ignorieren: invalides Feld soll Config nicht killen
+            pass
+    return out    
 
-    if not updates:
-        return cfg
-    return dataclasses.replace(cfg, **updates)
+def apply_overrides(cfg: Config, overrides: Dict[str, Any]) -> Config:
+    updates = normalize_loaded_config(overrides)
+    return dataclasses.replace(cfg, **updates) if updates else cfg
 
 
 def load_config_file(path: Path) -> Dict[str, Any]:
@@ -279,7 +290,7 @@ def load_config_file(path: Path) -> Dict[str, Any]:
         data = json.loads(raw)
         if not isinstance(data, dict):
             return {}
-        return data
+        return normalize_loaded_config(data)
     except Exception:
         return {}
 
@@ -289,7 +300,7 @@ def load_env_overrides() -> Dict[str, Any]:
     for env_key, field_name in _ENV_MAP.items():
         if env_key in os.environ and os.environ[env_key] != "":
             ov[field_name] = os.environ[env_key]
-    return ov
+    return normalize_loaded_config(ov)
 
 
 def resolve_config(config_path: Optional[str]) -> tuple[Config, Optional[Path]]:
