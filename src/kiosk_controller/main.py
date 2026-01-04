@@ -91,24 +91,33 @@ LOG = logging.getLogger("kiosk")
 
 
 def setup_logging(cfg: Config) -> logging.Logger:
-    Path(cfg.log_file).parent.mkdir(parents=True, exist_ok=True)
-
     logger = logging.getLogger("kiosk")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
 
     fmt = logging.Formatter("[%(asctime)s] %(message)s", "%Y-%m-%d %H:%M:%S")
 
-    fh = logging.handlers.RotatingFileHandler(
-        cfg.log_file, maxBytes=512_000, backupCount=3, encoding="utf-8"
-    )
-    fh.setFormatter(fmt)
+    # log_file kann Path oder str sein (JSON liefert typischerweise str)
+    log_file = getattr(cfg, "log_file", None)
+    log_path: Optional[Path] = None
+    if log_file:
+        try:
+            log_path = log_file if isinstance(log_file, Path) else Path(str(log_file))
+        except Exception:
+            log_path = None
+
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        fh = logging.handlers.RotatingFileHandler(
+            str(log_path), maxBytes=512_000, backupCount=3, encoding="utf-8"
+        )
+        fh.setFormatter(fmt)
+        logger.addHandler(fh)
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
-
-    logger.addHandler(fh)
     logger.addHandler(ch)
+
     logger.propagate = False
     return logger
 
