@@ -574,7 +574,7 @@ class FirefoxController:
         return bool(pgrep_profile(self.cfg.profile_dir))
 
     def has_window(self) -> bool:
-        return wmctrl_find_firefox_window_id(self.cfg) is not None
+        return find_firefox_window_id(self.cfg) is not None
 
     def start(self, url: str) -> bool:
         if not self.firefox_path:
