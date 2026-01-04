@@ -99,20 +99,21 @@ def setup_logging(cfg: Config) -> logging.Logger:
 
     # log_file kann Path oder str sein (JSON liefert typischerweise str)
     log_file = getattr(cfg, "log_file", None)
-    log_path: Optional[Path] = None
+
     if log_file:
         try:
             log_path = log_file if isinstance(log_file, Path) else Path(str(log_file))
-        except Exception:
-            log_path = None
+            log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        fh = logging.handlers.RotatingFileHandler(
-            str(log_path), maxBytes=512_000, backupCount=3, encoding="utf-8"
-        )
-        fh.setFormatter(fmt)
-        logger.addHandler(fh)
+            fh = logging.handlers.RotatingFileHandler(
+                log_path, maxBytes=512_000, backupCount=3, encoding="utf-8"
+            )
+            fh.setFormatter(fmt)
+            logger.addHandler(fh)
+        except Exception as e:
+            # Logging darf niemals den Prozess killen
+            # (stdout bleibt aktiv)
+            pass
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(fmt)
