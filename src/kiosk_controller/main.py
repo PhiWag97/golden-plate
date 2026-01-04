@@ -20,7 +20,8 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, get_args, get_origin, get_type_hints
-
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 # ----------------------------
@@ -29,6 +30,9 @@ from typing import Any, Dict, List, Optional, get_args, get_origin, get_type_hin
 
 @dataclasses.dataclass(frozen=True)
 class Config:
+    #Router
+    router_port: int = 8765
+    
     # AIDA
     aida_port: int = 1111
     aida_health_path: str = "/api?sensors=STIME"
@@ -124,6 +128,129 @@ def setup_logging(cfg: Config) -> logging.Logger:
     return logger
 
 
+@dataclasses.dataclass
+class RouterState:
+    mode: str = "DOWN"           # "UP"/"DOWN"
+    target_ip: Optional[str] = None
+    url: str = ""                # Ziel-URL fürs Panel (nur sinnvoll bei UP)
+    ts: float = 0.0              # last update (time.time())
+
+class Router:
+    def __init__(self, cfg: Config) -> None:
+        self.cfg = cfg
+        self._lock = threading.Lock()
+        self._state = RouterState()
+
+    def update(self, mode: str, target_ip: Optional[str], url: str) -> None:
+        with self._lock:
+            self._state.mode = mode
+            self._state.target_ip = target_ip
+            self._state.url = url
+            self._state.ts = time.time()
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "mode": self._state.mode,
+                "target_ip": self._state.target_ip,
+                "url": self._state.url,
+                "ts": self._state.ts,
+            }
+
+def start_router_server(cfg: Config, router: Router) -> None:
+    splash_html = None
+    try:
+        # Wenn du deine bestehende Splash-Datei weiterverwenden willst:
+        splash_html = cfg.splash_file.read_text(encoding="utf-8")
+    except Exception:
+        splash_html = "<html><body style='background:#000;color:#fff;font-family:sans-serif'>Loading…</body></html>"
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            # optional: HTTP-Requests nicht ins Journal spammen
+            return
+
+        def _send(self, code: int, body: bytes, ctype: str) -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path == "/" or self.path.startswith("/?"):
+                html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Golden Plate Router</title>
+  <style>
+    html,body {{ height:100%; margin:0; background:#000; color:#fff; font-family:sans-serif; }}
+    #bar {{ position:fixed; top:0; left:0; right:0; padding:6px 10px; font-size:14px; background:rgba(0,0,0,0.6); z-index:2; }}
+    #frame {{ position:absolute; top:0; left:0; width:100%; height:100%; border:0; }}
+  </style>
+</head>
+<body>
+  <div id="bar">Status: <span id="st">?</span> <span id="ip"></span></div>
+  <iframe id="frame" src="/splash"></iframe>
+
+  <script>
+    const st = document.getElementById('st');
+    const ip = document.getElementById('ip');
+    const frame = document.getElementById('frame');
+    let lastSrc = "";
+
+    async function poll() {{
+      try {{
+        const r = await fetch('/state.json', {{cache:'no-store'}});
+        const s = await r.json();
+
+        st.textContent = s.mode || '?';
+        ip.textContent = s.target_ip ? ('(' + s.target_ip + ')') : '';
+
+        let desired = '/splash';
+        if (s.mode === 'UP' && s.url) desired = s.url;
+
+        // Nur umschalten wenn es wirklich geändert hat:
+        if (desired !== lastSrc) {{
+          lastSrc = desired;
+          frame.src = desired;
+        }}
+      }} catch (e) {{
+        st.textContent = 'ERR';
+        ip.textContent = '';
+        // fallback: splash lassen
+      }}
+    }}
+
+    poll();
+    setInterval(poll, 1000);
+  </script>
+</body>
+</html>
+"""
+                self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
+                return
+
+            if self.path == "/state.json":
+                body = json.dumps(router.snapshot()).encode("utf-8")
+                self._send(200, body, "application/json; charset=utf-8")
+                return
+
+            if self.path == "/splash":
+                self._send(200, splash_html.encode("utf-8"), "text/html; charset=utf-8")
+                return
+
+            self._send(404, b"not found", "text/plain; charset=utf-8")
+
+    srv = ThreadingHTTPServer(("127.0.0.1", int(cfg.router_port)), Handler)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    
+    
+    
 # ----------------------------
 # Helpers
 # ----------------------------
@@ -204,6 +331,8 @@ def ensure_splash_file(cfg: Config) -> None:
 # ----------------------------
 
 _ENV_MAP: Dict[str, str] = {
+    # Router
+    "KIOSK_ROUTER_PORT": "router_port",
     # AIDA / Loop
     "KIOSK_AIDA_PORT": "aida_port",
     "KIOSK_AIDA_HEALTH_PATH": "aida_health_path",
@@ -619,60 +748,6 @@ class FirefoxController:
             else:
                 self.window_missing_since = None
 
-    def navigate(self, url: str) -> bool:
-        now = time.time()
-        if self.last_url == url and (now - self.last_nav_ts) < self.cfg.nav_cooldown_sec:
-            return True
-
-        if not shutil.which("xdotool"):
-            LOG.error("ERROR: xdotool fehlt (apt install xdotool).")
-            return False
-
-        wid = find_firefox_window_id(self.cfg, wait_sec=2.0)
-        if not wid:
-            LOG.warning("WARN: Kein Firefox-Fenster für Navigation gefunden.")
-            return False
-
-        env = x_env(self.cfg)
-        steps = [
-            (["xdotool", "windowactivate", "--sync", wid], 2.0),
-            (["xdotool", "key", "--window", "$wid", "--clearmodifiers", "ctrl+l"], 2.0),
-            (["xdotool", "type", "--window", "$wid", "--delay", "12", url], 5.0),
-            (["xdotool", "key", "--window", "$wid", "Return"], 2.0),
-        ]
-        for cmd, to in steps:
-            r = run_cmd(cmd, timeout=to, env=env)
-            if r.rc != 0:
-                LOG.warning(f"WARN: Navigation step failed: {' '.join(cmd)} | {r.err.strip()}")
-                return False
-
-        self.last_nav_ts = now
-        self.last_url = url
-        return True
-
-    def ensure_on_url(self, url: str, base_url_for_restart: str) -> None:
-        if not self.is_running():
-            self.start(base_url_for_restart)
-            return
-        
-         # NEU: Während der Startup-Grace keine Navigation erzwingen
-        if (time.time() - self.last_start_ts) < self.cfg.firefox_startup_grace_sec:
-            return
-        
-        # Firefox braucht ggf. ein paar Sekunden bis Fenster sichtbar ist
-        if (time.time() - self.last_start_ts) < self.cfg.firefox_startup_grace_sec:
-            return
-        
-        ok = self.navigate(url)
-        if ok:
-            self.nav_fail_streak = 0
-            return
-
-        self.nav_fail_streak += 1
-        if self.nav_fail_streak >= self.cfg.nav_fails_to_restart:
-            LOG.info("Navigation wiederholt fehlgeschlagen -> Firefox Neustart")
-            self.restart(base_url_for_restart)
-            self.nav_fail_streak = 0
 
 
 # ----------------------------
@@ -688,7 +763,10 @@ class KioskController:
         self.cache = TargetCache(cfg)
         self.state = State()
 
-        self.splash_url = f"file://{cfg.splash_file}"
+        self.router = Router(cfg)
+        start_router_server(cfg, self.router)
+        self.router_url = f"http://127.0.0.1:{cfg.router_port}/"
+
         self.net: Optional[ipaddress.IPv4Network] = get_default_iface_and_cidr()
 
         cached = self.cache.load_ips(max_n=5)
@@ -697,62 +775,12 @@ class KioskController:
         LOG.info(f"Netz erkannt: {self.net if self.net else 'unbekannt'}")
         LOG.info(f"Cache IPs: {cached if cached else 'keine'}")
         LOG.info(f"Splash: {cfg.splash_file}")
+        LOG.info(f"Router: {self.router_url}")
 
-    def desired_url(self) -> str:
+    def panel_url(self) -> str:
         if self.state.mode == "UP" and self.state.target_ip:
             return f"http://{self.state.target_ip}:{self.cfg.aida_port}/"
-        return self.splash_url
-
-    def on_mode_change(self, new_mode: str) -> None:
-        if new_mode == self.state.mode:
-            return
-        self.state.mode = new_mode
-        LOG.info(f"MODE -> {new_mode}")
-
-        if new_mode == "DOWN":
-            if self.state.down_since is None:
-                self.state.down_since = time.time()
-        else:
-            self.state.down_since = None
-            if self.state.target_ip:
-                self.cache.save_ok_ip(self.state.target_ip, max_n=5)
-
-    def maybe_discover(self) -> None:
-        now = time.time()
-
-        if self.state.down_since is None:
-            self.state.down_since = now
-
-        if self.state.target_ip and (now - self.state.down_since) < self.cfg.recovery_window_sec:
-            return
-
-        if (now - self.state.last_discovery_ts) < self.cfg.discovery_cooldown_sec:
-            return
-        self.state.last_discovery_ts = now
-
-        if not self.net:
-            self.net = get_default_iface_and_cidr()
-            if not self.net:
-                LOG.warning("WARN: Kein Netz für Discovery ermittelbar.")
-                return
-
-        neigh = ip_neigh_candidates()
-        cached = self.cache.load_ips(max_n=5)
-
-        candidates: List[str] = []
-        for ip in (cached + neigh):
-            if ip not in candidates:
-                candidates.append(ip)
-
-        LOG.info(f"Discovery startet (Budget {self.cfg.discovery_budget_sec}s), Kandidaten: {candidates[:10]}")
-        found = bounded_discovery(self.cfg, self.net, candidates)
-        if found:
-            LOG.info(f"Discovery Erfolg: {found}")
-            self.state.target_ip = found
-            self.cache.save_ok_ip(found, max_n=5)
-            self.state.down_since = None
-        else:
-            LOG.info("Discovery: nichts gefunden")
+        return ""  # DOWN -> Router zeigt /splash
 
     def tick(self) -> None:
         ok = False
@@ -781,13 +809,16 @@ class KioskController:
             if self.state.target_ip:
                 self.cache.save_ok_ip(self.state.target_ip, max_n=5)
 
-        self.fx.ensure_running(self.splash_url)
-        self.fx.ensure_on_url(self.desired_url(), base_url_for_restart=self.splash_url)
+        # 1) Router-State setzen
+        self.router.update(self.state.mode, self.state.target_ip, self.panel_url())
+
+        # 2) Firefox am Leben halten (immer Router-URL)
+        self.fx.ensure_running(self.router_url)
 
     def run(self) -> None:
         LOG.info("Kiosk Controller startet.")
-        self.on_mode_change("DOWN")
-        self.fx.ensure_running(self.splash_url)
+        self.router.update("DOWN", self.state.target_ip, "")
+        self.fx.ensure_running(self.router_url)
 
         if self.state.target_ip:
             LOG.info(f"Starte mit Cache-IP: {self.state.target_ip}")
@@ -798,7 +829,6 @@ class KioskController:
             except Exception as e:
                 LOG.error(f"ERROR (tick): {e}")
             time.sleep(self.cfg.check_interval_sec)
-
 
 # ----------------------------
 # Main / Signal Handling
