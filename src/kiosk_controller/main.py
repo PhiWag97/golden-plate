@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, get_args, get_origin, get_type_hints
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+_ROUTER_SRV: Optional[ThreadingHTTPServer] = None
 
 
 # ----------------------------
@@ -158,16 +159,19 @@ class Router:
             }
 
 def start_router_server(cfg: Config, router: Router) -> None:
-    splash_html = None
+    global _ROUTER_SRV
+    if _ROUTER_SRV is not None:
+        return
+
+    # Splash-HTML laden (Fallback, falls Datei fehlt)
     try:
-        # Wenn du deine bestehende Splash-Datei weiterverwenden willst:
         splash_html = cfg.splash_file.read_text(encoding="utf-8")
     except Exception:
         splash_html = "<html><body style='background:#000;color:#fff;font-family:sans-serif'>Loading…</body></html>"
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
-            # optional: HTTP-Requests nicht ins Journal spammen
+            # HTTP-Requests nicht ins Journal spammen
             return
 
         def _send(self, code: int, body: bytes, ctype: str) -> None:
@@ -180,16 +184,16 @@ def start_router_server(cfg: Config, router: Router) -> None:
 
         def do_GET(self):
             if self.path == "/" or self.path.startswith("/?"):
-                html = f"""<!doctype html>
+                html = """<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Golden Plate Router</title>
   <style>
-    html,body {{ height:100%; margin:0; background:#000; color:#fff; font-family:sans-serif; }}
-    #bar {{ position:fixed; top:0; left:0; right:0; padding:6px 10px; font-size:14px; background:rgba(0,0,0,0.6); z-index:2; }}
-    #frame {{ position:absolute; top:0; left:0; width:100%; height:100%; border:0; }}
+    html,body { height:100%; margin:0; background:#000; color:#fff; font-family:sans-serif; }
+    #bar { position:fixed; top:0; left:0; right:0; padding:6px 10px; font-size:14px; background:rgba(0,0,0,0.6); z-index:2; }
+    #frame { position:absolute; top:0; left:0; width:100%; height:100%; border:0; }
   </style>
 </head>
 <body>
@@ -202,9 +206,9 @@ def start_router_server(cfg: Config, router: Router) -> None:
     const frame = document.getElementById('frame');
     let lastSrc = "";
 
-    async function poll() {{
-      try {{
-        const r = await fetch('/state.json', {{cache:'no-store'}});
+    async function poll() {
+      try {
+        const r = await fetch('/state.json', {cache:'no-store'});
         const s = await r.json();
 
         st.textContent = s.mode || '?';
@@ -213,17 +217,15 @@ def start_router_server(cfg: Config, router: Router) -> None:
         let desired = '/splash';
         if (s.mode === 'UP' && s.url) desired = s.url;
 
-        // Nur umschalten wenn es wirklich geändert hat:
-        if (desired !== lastSrc) {{
+        if (desired !== lastSrc) {
           lastSrc = desired;
           frame.src = desired;
-        }}
-      }} catch (e) {{
+        }
+      } catch (e) {
         st.textContent = 'ERR';
         ip.textContent = '';
-        // fallback: splash lassen
-      }}
-    }}
+      }
+    }
 
     poll();
     setInterval(poll, 1000);
@@ -245,10 +247,17 @@ def start_router_server(cfg: Config, router: Router) -> None:
 
             self._send(404, b"not found", "text/plain; charset=utf-8")
 
-    srv = ThreadingHTTPServer(("127.0.0.1", int(cfg.router_port)), Handler)
+    ThreadingHTTPServer.allow_reuse_address = True
+    try:
+        srv = ThreadingHTTPServer(("127.0.0.1", int(cfg.router_port)), Handler)
+    except OSError as e:
+        LOG.error(f"ERROR: Router bind fehlgeschlagen auf 127.0.0.1:{cfg.router_port}: {e}")
+        return
+
+    _ROUTER_SRV = srv
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
-    
+    LOG.info(f"Router HTTP aktiv auf http://127.0.0.1:{cfg.router_port}/")
     
     
 # ----------------------------
@@ -637,27 +646,7 @@ def bounded_discovery(cfg: Config, network: ipaddress.IPv4Network, extra_candida
 # X11 / Firefox Control
 # ----------------------------
 
-def find_firefox_window_id(cfg: Config, wait_sec: float = 0.0) -> Optional[str]:
-    env = x_env(cfg)
 
-    # 1) wmctrl wie bisher (wenn es bei dir mal geht)
-    if shutil.which("wmctrl"):
-        r = run_cmd(["wmctrl", "-lx"], timeout=2.0, env=env)
-        if r.rc == 0 and r.out.strip():
-            for line in r.out.splitlines():
-                if "firefox" in line.lower():
-                    parts = line.split()
-                    if parts:
-                        return parts[0]
-
-    # 2) Fallback: xdotool (liefert bei dir 6291499)
-    if shutil.which("xdotool"):
-        for cls in ("firefox", "firefox-esr", "Navigator"):
-            r = run_cmd(["xdotool", "search", "--onlyvisible", "--class", cls], timeout=2.0, env=env)
-            if r.rc == 0 and r.out.strip():
-                return r.out.split()[0]
-
-    return None
 
 
 def pgrep_profile(profile_dir: Path) -> List[int]:
@@ -697,13 +686,9 @@ class FirefoxController:
         self.last_url: Optional[str] = None
 
         self.nav_fail_streak = 0
-        self.window_missing_since: Optional[float] = None
 
     def is_running(self) -> bool:
         return bool(pgrep_profile(self.cfg.profile_dir))
-
-    def has_window(self) -> bool:
-        return find_firefox_window_id(self.cfg) is not None
 
     def start(self, url: str) -> bool:
         if not self.firefox_path:
@@ -719,7 +704,6 @@ class FirefoxController:
             self.last_url = url
             self.last_nav_ts = time.time()
             self.nav_fail_streak = 0
-            self.window_missing_since = None
             LOG.info(f"Firefox gestartet: {url}")
             return True
         except Exception as e:
@@ -737,16 +721,6 @@ class FirefoxController:
             self.start(base_url)
             return
 
-        if (time.time() - self.last_start_ts) > self.cfg.firefox_startup_grace_sec:
-            if not self.has_window():
-                if self.window_missing_since is None:
-                    self.window_missing_since = time.time()
-                elif (time.time() - self.window_missing_since) > self.cfg.window_missing_to_restart_sec:
-                    LOG.info("Firefox läuft, aber kein Fenster -> Neustart")
-                    self.restart(base_url)
-                    return
-            else:
-                self.window_missing_since = None
 
 
 
@@ -840,6 +814,14 @@ _ACTIVE_CFG: Optional[Config] = None
 def _handle_term(signum: int, frame) -> None:
     LOG.info(f"Signal {signum} erhalten, beende…")
     try:
+        global _ROUTER_SRV
+        if _ROUTER_SRV:
+            _ROUTER_SRV.shutdown()
+            _ROUTER_SRV.server_close()
+            _ROUTER_SRV = None
+    except Exception:
+        pass
+    try:
         if _ACTIVE_CFG:
             firefox_kill(_ACTIVE_CFG)
     except Exception:
@@ -874,10 +856,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not shutil.which("ip"):
         LOG.error("ERROR: ip (iproute2) fehlt.")
         return 2
-    if not shutil.which("wmctrl"):
-        LOG.warning("WARN: wmctrl fehlt (Fenster-Checks eingeschränkt). apt install wmctrl")
-    if not shutil.which("xdotool"):
-        LOG.warning("WARN: xdotool fehlt (Navigation ohne Restart nicht möglich). apt install xdotool")
 
     if not os.environ.get("DISPLAY"):
         LOG.warning(f"WARN: DISPLAY nicht gesetzt (erwartet {cfg.default_display}).")
