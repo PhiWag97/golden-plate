@@ -755,7 +755,63 @@ class KioskController:
         if self.state.mode == "UP" and self.state.target_ip:
             return f"http://{self.state.target_ip}:{self.cfg.aida_port}/"
         return ""  # DOWN -> Router zeigt /splash
+        
+    def on_mode_change(self, new_mode: str) -> None:
+        if new_mode == self.state.mode:
+            return
 
+        self.state.mode = new_mode
+        LOG.info(f"MODE -> {new_mode}")
+
+        if new_mode == "DOWN":
+            if self.state.down_since is None:
+                self.state.down_since = time.time()
+        else:
+            self.state.down_since = None
+            if self.state.target_ip:
+                self.cache.save_ok_ip(self.state.target_ip, max_n=5)
+
+    def maybe_discover(self) -> None:
+        now = time.time()
+
+        if self.state.down_since is None:
+            self.state.down_since = now
+
+        # Recovery: nach erstem Fail nur letzte IP probieren
+        if self.state.target_ip and (now - self.state.down_since) < self.cfg.recovery_window_sec:
+            return
+
+        # Cooldown
+        if (now - self.state.last_discovery_ts) < self.cfg.discovery_cooldown_sec:
+            return
+        self.state.last_discovery_ts = now
+
+        # Netz ermitteln, falls noch nicht vorhanden
+        if not self.net:
+            self.net = get_default_iface_and_cidr()
+            if not self.net:
+                LOG.warning("WARN: Kein Netz für Discovery ermittelbar.")
+                return
+
+        neigh = ip_neigh_candidates()
+        cached = self.cache.load_ips(max_n=5)
+
+        candidates: List[str] = []
+        for ip in (cached + neigh):
+            if ip not in candidates:
+                candidates.append(ip)
+
+        LOG.info(f"Discovery startet (Budget {self.cfg.discovery_budget_sec}s), Kandidaten: {candidates[:10]}")
+        found = bounded_discovery(self.cfg, self.net, candidates)
+
+        if found:
+            LOG.info(f"Discovery Erfolg: {found}")
+            self.state.target_ip = found
+            self.cache.save_ok_ip(found, max_n=5)
+            self.state.down_since = None
+        else:
+            LOG.info("Discovery: nichts gefunden")
+            
     def tick(self) -> None:
         ok = False
         if self.state.target_ip:
@@ -791,6 +847,7 @@ class KioskController:
 
     def run(self) -> None:
         LOG.info("Kiosk Controller startet.")
+        self.on_mode_change("DOWN")
         self.router.update("DOWN", self.state.target_ip, "")
         self.fx.ensure_running(self.router_url)
 
