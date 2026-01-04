@@ -19,7 +19,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, get_type_hints
 
 
 # ----------------------------
@@ -249,12 +249,15 @@ def _coerce_value(field_type: Any, value: Any) -> Any:
 
 
 def apply_overrides(cfg: Config, overrides: Dict[str, Any]) -> Config:
-    fields = {f.name: f.type for f in dataclasses.fields(Config)}
+    # Wichtig: echte Typen auflösen (future-annotations -> sonst sind es Strings)
+    fields = get_type_hints(Config, globalns=globals(), localns=locals())
+
     updates: Dict[str, Any] = {}
     for k, v in overrides.items():
         if k not in fields:
             continue
         updates[k] = _coerce_value(fields[k], v)
+
     if not updates:
         return cfg
     return dataclasses.replace(cfg, **updates)

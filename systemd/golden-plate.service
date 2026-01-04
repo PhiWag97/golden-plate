@@ -23,7 +23,10 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 
 # startx startet Xorg + führt unser Session-Script aus
-ExecStart=/usr/bin/startx /opt/golden-plate/scripts/kiosk-session.sh -- :0 -nolisten tcp vt1
+[Service]
+ExecStart=
+ExecStart=/usr/bin/openvt -f -c 1 -- /bin/su - user -c "/usr/bin/startx /opt/golden-plate/scripts/kiosk-session.sh -- :0 -nolisten tcp vt1"
+#ExecStart=/usr/bin/startx /opt/golden-plate/scripts/kiosk-session.sh -- :0 -nolisten tcp vt1
 Restart=always
 RestartSec=2
 
