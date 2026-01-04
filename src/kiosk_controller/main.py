@@ -508,26 +508,37 @@ def bounded_discovery(cfg: Config, network: ipaddress.IPv4Network, extra_candida
 # X11 / Firefox Control
 # ----------------------------
 
-def wmctrl_find_firefox_window_id(cfg: Config) -> Optional[str]:
+def find_firefox_window_id(cfg: Config, wait_sec: float = 0.0) -> Optional[str]:
     env = x_env(cfg)
-    
-    # Prefer xdotool: funktioniert auch ohne EWMH/NET_CLIENT_LIST
+
+    # 1) xdotool (bevorzugt)
     if shutil.which("xdotool"):
-        r = run_cmd(["xdotool", "search", "--onlyvisible", "--class", "firefox"], timeout=2.0, env=env)
+        # Bei wait_sec > 0: --sync blockiert bis Fenster da ist (Timeout über run_cmd)
+        base = ["xdotool", "search"]
+        if wait_sec and wait_sec > 0:
+            base = ["xdotool", "search", "--sync"]
+
+        queries = [
+            base + ["--onlyvisible", "--class", "firefox-esr"],
+            base + ["--onlyvisible", "--class", "firefox"],
+            base + ["--onlyvisible", "--class", "Navigator"],
+        ]
+
+        for cmd in queries:
+            r = run_cmd(cmd, timeout=max(1.0, wait_sec), env=env)
+            if r.rc == 0 and r.out.strip():
+                return r.out.split()[0]
+
+    # 2) Fallback: wmctrl
+    if shutil.which("wmctrl"):
+        r = run_cmd(["wmctrl", "-lx"], timeout=2.0, env=env)
         if r.rc == 0 and r.out.strip():
-            return r.out.split()[0]
-            
-    if not shutil.which("wmctrl"):
-        return None
-        
-    r = run_cmd(["wmctrl", "-lx"], timeout=2.0, env=env)
-    if r.rc != 0 or not r.out.strip():
-        return None
-    for line in r.out.splitlines():
-        if "firefox" in line.lower():
-            parts = line.split()
-            if parts:
-                return parts[0]
+            for line in r.out.splitlines():
+                if "firefox" in line.lower() or "navigator" in line.lower():
+                    parts = line.split()
+                    if parts:
+                        return parts[0]
+
     return None
 
 
@@ -628,7 +639,7 @@ class FirefoxController:
             LOG.error("ERROR: xdotool fehlt (apt install xdotool).")
             return False
 
-        wid = wmctrl_find_firefox_window_id(self.cfg)
+        wid = find_firefox_window_id(self.cfg, wait_sec=2.0)
         if not wid:
             LOG.warning("WARN: Kein Firefox-Fenster für Navigation gefunden.")
             return False
@@ -636,9 +647,9 @@ class FirefoxController:
         env = x_env(self.cfg)
         steps = [
             (["xdotool", "windowactivate", "--sync", wid], 2.0),
-            (["xdotool", "key", "--clearmodifiers", "ctrl+l"], 2.0),
-            (["xdotool", "type", "--delay", "12", url], 5.0),
-            (["xdotool", "key", "Return"], 2.0),
+            (["xdotool", "key", "--window", wid, "--clearmodifiers", "ctrl+l"], 2.0),
+            (["xdotool", "type", "--window", wid, "--delay", "12", url], 5.0),
+            (["xdotool", "key", "--window", wid, "Return"], 2.0),
         ]
         for cmd, to in steps:
             r = run_cmd(cmd, timeout=to, env=env)
@@ -656,6 +667,10 @@ class FirefoxController:
             return
         
          # NEU: Während der Startup-Grace keine Navigation erzwingen
+        if (time.time() - self.last_start_ts) < self.cfg.firefox_startup_grace_sec:
+            return
+        
+        # Firefox braucht ggf. ein paar Sekunden bis Fenster sichtbar ist
         if (time.time() - self.last_start_ts) < self.cfg.firefox_startup_grace_sec:
             return
         
