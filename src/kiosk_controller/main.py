@@ -511,33 +511,22 @@ def bounded_discovery(cfg: Config, network: ipaddress.IPv4Network, extra_candida
 def find_firefox_window_id(cfg: Config, wait_sec: float = 0.0) -> Optional[str]:
     env = x_env(cfg)
 
-    # 1) xdotool (bevorzugt)
-    if shutil.which("xdotool"):
-        # Bei wait_sec > 0: --sync blockiert bis Fenster da ist (Timeout über run_cmd)
-        base = ["xdotool", "search"]
-        if wait_sec and wait_sec > 0:
-            base = ["xdotool", "search", "--sync"]
-
-        queries = [
-            base + ["--onlyvisible", "--class", "firefox-esr"],
-            base + ["--onlyvisible", "--class", "firefox"],
-            base + ["--onlyvisible", "--class", "Navigator"],
-        ]
-
-        for cmd in queries:
-            r = run_cmd(cmd, timeout=max(1.0, wait_sec), env=env)
-            if r.rc == 0 and r.out.strip():
-                return r.out.split()[0]
-
-    # 2) Fallback: wmctrl
+    # 1) wmctrl wie bisher (wenn es bei dir mal geht)
     if shutil.which("wmctrl"):
         r = run_cmd(["wmctrl", "-lx"], timeout=2.0, env=env)
         if r.rc == 0 and r.out.strip():
             for line in r.out.splitlines():
-                if "firefox" in line.lower() or "navigator" in line.lower():
+                if "firefox" in line.lower():
                     parts = line.split()
                     if parts:
                         return parts[0]
+
+    # 2) Fallback: xdotool (liefert bei dir 6291499)
+    if shutil.which("xdotool"):
+        for cls in ("firefox", "firefox-esr", "Navigator"):
+            r = run_cmd(["xdotool", "search", "--onlyvisible", "--class", cls], timeout=2.0, env=env)
+            if r.rc == 0 and r.out.strip():
+                return r.out.split()[0]
 
     return None
 
@@ -647,9 +636,9 @@ class FirefoxController:
         env = x_env(self.cfg)
         steps = [
             (["xdotool", "windowactivate", "--sync", wid], 2.0),
-            (["xdotool", "key", "--window", wid, "--clearmodifiers", "ctrl+l"], 2.0),
-            (["xdotool", "type", "--window", wid, "--delay", "12", url], 5.0),
-            (["xdotool", "key", "--window", wid, "Return"], 2.0),
+            (["xdotool", "key", "--window", "$wid", "--clearmodifiers", "ctrl+l"], 2.0),
+            (["xdotool", "type", "--window", "$wid", "--delay", "12", url], 5.0),
+            (["xdotool", "key", "--window", "$wid", "Return"], 2.0),
         ]
         for cmd, to in steps:
             r = run_cmd(cmd, timeout=to, env=env)
