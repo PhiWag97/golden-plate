@@ -509,9 +509,18 @@ def bounded_discovery(cfg: Config, network: ipaddress.IPv4Network, extra_candida
 # ----------------------------
 
 def wmctrl_find_firefox_window_id(cfg: Config) -> Optional[str]:
+    env = x_env(cfg)
+    
+    # Prefer xdotool: funktioniert auch ohne EWMH/NET_CLIENT_LIST
+    if shutil.which("xdotool"):
+        r = run_cmd(["xdotool", "search", "--onlyvisible", "--class", "firefox"], timeout=2.0, env=env)
+        if r.rc == 0 and r.out.strip():
+            return r.out.split()[0]
+            
     if not shutil.which("wmctrl"):
         return None
-    r = run_cmd(["wmctrl", "-lx"], timeout=2.0, env=x_env(cfg))
+        
+    r = run_cmd(["wmctrl", "-lx"], timeout=2.0, env=env)
     if r.rc != 0 or not r.out.strip():
         return None
     for line in r.out.splitlines():
@@ -645,7 +654,11 @@ class FirefoxController:
         if not self.is_running():
             self.start(base_url_for_restart)
             return
-
+        
+         # NEU: Während der Startup-Grace keine Navigation erzwingen
+        if (time.time() - self.last_start_ts) < self.cfg.firefox_startup_grace_sec:
+            return
+        
         ok = self.navigate(url)
         if ok:
             self.nav_fail_streak = 0
