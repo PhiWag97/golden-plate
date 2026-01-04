@@ -1,0 +1,31 @@
+[Unit]
+Description=Golden Plate Kiosk (Xorg + Openbox + kiosk-controller)
+Wants=network-online.target
+After=network-online.target systemd-user-sessions.service
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/opt/golden-plate
+
+# X11 Kontext
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/user/.Xauthority
+EnvironmentFile=-/etc/default/kiosk-controller
+
+# X auf tty1
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+
+# startx startet Xorg + führt unser Session-Script aus
+ExecStart=/usr/bin/startx /opt/golden-plate/scripts/kiosk-session.sh -- :0 -nolisten tcp vt1
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

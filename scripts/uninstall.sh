@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_DIR="/opt/golden-plate"
-SERVICE_NAME="kiosk-controller.service"
+SERVICE_NAME="golden-plate.service"
 
 if [[ $EUID -ne 0 ]]; then
   echo "Bitte mit sudo ausführen."
