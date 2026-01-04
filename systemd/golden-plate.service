@@ -5,28 +5,17 @@ After=network-online.target systemd-user-sessions.service
 
 [Service]
 Type=simple
-User=user
+User=root
 WorkingDirectory=/opt/golden-plate
 
-# X11 Kontext
+# optional (wird an X/Child-Prozesse weitergereicht)
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/user/.Xauthority
 EnvironmentFile=-/etc/default/kiosk-controller
 
-# X auf tty1
-TTYPath=/dev/tty1
-StandardInput=tty
-StandardOutput=journal
-StandardError=journal
-TTYReset=yes
-TTYVHangup=yes
-TTYVTDisallocate=yes
+# VT1 sicher claimen, dann X-Session im User-Kontext starten
+ExecStart=/usr/bin/openvt -f -c 1 -- /bin/su - user -c /usr/bin/startx\ /opt/golden-plate/scripts/kiosk-session.sh\ --\ :0\ -nolisten\ tcp\ vt1
 
-# startx startet Xorg + führt unser Session-Script aus
-[Service]
-ExecStart=
-ExecStart=/usr/bin/openvt -f -c 1 -- /bin/su - user -c "/usr/bin/startx /opt/golden-plate/scripts/kiosk-session.sh -- :0 -nolisten tcp vt1"
-#ExecStart=/usr/bin/startx /opt/golden-plate/scripts/kiosk-session.sh -- :0 -nolisten tcp vt1
 Restart=always
 RestartSec=2
 

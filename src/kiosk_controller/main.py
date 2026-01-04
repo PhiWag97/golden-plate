@@ -19,7 +19,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, get_type_hints, get_origin, get_args
+from typing import Any, Dict, List, Optional
 
 
 # ----------------------------
@@ -239,7 +239,7 @@ _ENV_MAP: Dict[str, str] = {
 def _coerce_value(field_type: Any, value: Any) -> Any:
     # Optional/Union behandeln (z.B. Optional[Path])
     origin = get_origin(field_type)
-    if origin is not None:
+    if origin is Union:
         args = [a for a in get_args(field_type) if a is not type(None)]
         # Wenn Union/Optional genau einen sinnvollen Typ enthält, darauf reduzieren
         if len(args) == 1:
