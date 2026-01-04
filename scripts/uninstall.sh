@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/opt/kiosk-controller"
+APP_DIR="/opt/golden-plate"
 SERVICE_NAME="kiosk-controller.service"
 
 if [[ $EUID -ne 0 ]]; then

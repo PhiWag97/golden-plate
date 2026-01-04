@@ -10,8 +10,8 @@ Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/user/.Xauthority
 EnvironmentFile=-/etc/default/kiosk-controller
 
-WorkingDirectory=/opt/kiosk-controller
-ExecStart=/opt/kiosk-controller/venv/bin/kiosk-controller --config /etc/kiosk-controller.json
+WorkingDirectory=/opt/golden-plate
+ExecStart=/opt/golden-plate/venv/bin/kiosk-controller --config /etc/kiosk-controller.json
 Restart=always
 RestartSec=2
 

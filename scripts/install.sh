@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/opt/kiosk-controller"
+APP_DIR="/opt/golden-plate"
 VENV_DIR="${APP_DIR}/venv"
 SERVICE_NAME="kiosk-controller.service"
 CFG_DST="/etc/kiosk-controller.json"
@@ -69,6 +69,7 @@ echo "[8/8] Status…"
 systemctl --no-pager status "${SERVICE_NAME}" || true
 
 echo "Fertig."
+echo "Install-Dir: ${APP_DIR}"
 echo "Logs: journalctl -u ${SERVICE_NAME} -f"
 echo "Config: ${CFG_DST}"
 echo "Env:    ${ENV_DST}"
