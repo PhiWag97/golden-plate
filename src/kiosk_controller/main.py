@@ -91,7 +91,7 @@ LOG = logging.getLogger("kiosk")
 
 
 def setup_logging(cfg: Config) -> logging.Logger:
-    cfg.log_file.parent.mkdir(parents=True, exist_ok=True)
+    Path(cfg.log_file).parent.mkdir(parents=True, exist_ok=True)
 
     logger = logging.getLogger("kiosk")
     logger.setLevel(logging.INFO)
