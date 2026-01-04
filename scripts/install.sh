@@ -165,7 +165,7 @@ chmod 0644 "/etc/systemd/system/${SERVICE_NAME}"
 # .xinitrc aus dem Repo deployt
 echo "[X] .xinitrc für ${KIOSK_USER} installieren…"
 install -m 0755 -o "${KIOSK_USER}" -g "${KIOSK_USER}" \
-  "${APP_DIR}/systemd/xinitrc" \
+  "${APP_DIR}/systemd/.xinitrc" \
   "${KIOSK_HOME}/.xinitrc"
 
 # Falls alte Service-Variante existiert, deaktivieren (best effort)
