@@ -1,0 +1,11 @@
+[Unit]
+Description=Golden Plate - Run kiosk health monitor periodically
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=30
+AccuracySec=5
+Unit=kiosk-monitor.service
+
+[Install]
+WantedBy=timers.target

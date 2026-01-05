@@ -16,4 +16,4 @@ sudo ./scripts/install.sh
 cd /opt/golden-plate
 sudo git pull
 sudo /opt/golden-plate/venv/bin/pip install -e /opt/golden-plate
-sudo systemctl restart kiosk-controller.service
+sudo systemctl restart kiosk-web.service

@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GOLDEN_ROOT="/opt/golden-plate"
+SYSTEMD_DIR="${GOLDEN_ROOT}/systemd"
+ETC_DIR="${GOLDEN_ROOT}/etc"
+SITE_DIR="${GOLDEN_ROOT}/site"
+
+KIOSK_USER="kiosk"
+
+# === Konfiguration (anpassen) ===
+REMOTE_URL="http://192.168.1.123:8080"
+LOCAL_HOST="127.0.0.1"
+LOCAL_PORT="8088"
+CHECK_INTERVAL_MS="2000"
+TIMEOUT_MS="1500"
+DISABLE_GPU="false"
+# ===============================
+
+need_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "Bitte als root ausführen: sudo $0" >&2
+    exit 1
+  fi
+}
+
+log() { echo "[golden-plate] $*"; }
+
+require_repo_files() {
+  local missing=0
+  for f in kiosk.service kiosk-web.service kiosk-monitor.service kiosk-monitor.timer; do
+    if [[ ! -f "${SYSTEMD_DIR}/${f}" ]]; then
+      echo "Fehlt: ${SYSTEMD_DIR}/${f}" >&2
+      missing=1
+    fi
+  done
+  if [[ ! -x "${GOLDEN_ROOT}/bin/session.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/session.sh" >&2; missing=1; fi
+  if [[ ! -x "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/kiosk-monitor.sh" >&2; missing=1; fi
+  if [[ ! -f "${SITE_DIR}/index.html" ]]; then echo "Fehlt: ${SITE_DIR}/index.html" >&2; missing=1; fi
+
+  if [[ "${missing}" -ne 0 ]]; then
+    echo "Repo ist nicht vollständig. Bitte Struktur/Dateien anlegen (siehe Anleitung) und erneut ausführen." >&2
+    exit 2
+  fi
+}
+
+install_packages() {
+  log "Installiere Pakete …"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y
+  apt-get install -y --no-install-recommends \
+    ca-certificates curl python3 \
+    xserver-xorg xinit openbox x11-xserver-utils \
+    unclutter \
+    chromium \
+    procps coreutils util-linux
+}
+
+ensure_user() {
+  if id -u "${KIOSK_USER}" >/dev/null 2>&1; then
+    log "User '${KIOSK_USER}' existiert bereits."
+  else
+    log "Lege User '${KIOSK_USER}' an …"
+    adduser --disabled-password --gecos "" "${KIOSK_USER}"
+  fi
+  usermod -aG video,audio,input,render "${KIOSK_USER}" || true
+}
+
+ensure_dirs_rights() {
+  log "Setze Rechte unter ${GOLDEN_ROOT} …"
+  mkdir -p "${ETC_DIR}"
+  chown -R "${KIOSK_USER}:${KIOSK_USER}" "${GOLDEN_ROOT}"
+  chmod -R 0755 "${GOLDEN_ROOT}/bin"
+  chmod 0755 "${GOLDEN_ROOT}/bin/session.sh" "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" || true
+}
+
+configure_xwrapper() {
+  log "Konfiguriere /etc/X11/Xwrapper.config …"
+  mkdir -p /etc/X11
+  cat >/etc/X11/Xwrapper.config <<'EOF'
+allowed_users=anybody
+needs_root_rights=no
+EOF
+}
+
+write_env() {
+  log "Schreibe ${ETC_DIR}/golden-plate.env …"
+  cat >"${ETC_DIR}/golden-plate.env" <<EOF
+LOCAL_HOST=${LOCAL_HOST}
+LOCAL_PORT=${LOCAL_PORT}
+DISABLE_GPU=${DISABLE_GPU}
+EOF
+  chown "${KIOSK_USER}:${KIOSK_USER}" "${ETC_DIR}/golden-plate.env"
+  chmod 0644 "${ETC_DIR}/golden-plate.env"
+}
+
+write_config_json() {
+  log "Schreibe ${SITE_DIR}/config.json …"
+  cat >"${SITE_DIR}/config.json" <<EOF
+{
+  "remote_url": "${REMOTE_URL}",
+  "check_interval_ms": ${CHECK_INTERVAL_MS},
+  "timeout_ms": ${TIMEOUT_MS}
+}
+EOF
+  chown "${KIOSK_USER}:${KIOSK_USER}" "${SITE_DIR}/config.json"
+  chmod 0644 "${SITE_DIR}/config.json"
+}
+
+install_units_via_symlinks() {
+  log "Installiere systemd Units via Symlink nach /etc/systemd/system/ …"
+  ln -sf "${SYSTEMD_DIR}/kiosk-web.service" /etc/systemd/system/kiosk-web.service
+  ln -sf "${SYSTEMD_DIR}/kiosk.service" /etc/systemd/system/kiosk.service
+  ln -sf "${SYSTEMD_DIR}/kiosk-monitor.service" /etc/systemd/system/kiosk-monitor.service
+  ln -sf "${SYSTEMD_DIR}/kiosk-monitor.timer" /etc/systemd/system/kiosk-monitor.timer
+}
+
+enable_services() {
+  log "Aktiviere/Starte Services …"
+  systemctl daemon-reload
+  systemctl enable --now kiosk-web.service
+  systemctl enable --now kiosk.service
+  systemctl enable --now kiosk-monitor.timer
+}
+
+main() {
+  need_root
+  require_repo_files
+  install_packages
+  ensure_user
+  ensure_dirs_rights
+  configure_xwrapper
+  write_env
+  write_config_json
+  install_units_via_symlinks
+  enable_services
+
+  log "Fertig."
+  log "Status: systemctl status kiosk-web.service kiosk.service kiosk-monitor.timer"
+  log "Logs:   journalctl -u kiosk.service -n 200 --no-pager"
+}
+
+main "$@"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Golden Plate - Local Kiosk Web (localhost only)
+After=network.target
+
+[Service]
+User=kiosk
+WorkingDirectory=/opt/golden-plate/site
+ExecStart=/usr/bin/python3 -m http.server 8088 --bind 127.0.0.1 --directory /opt/golden-plate/site
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
