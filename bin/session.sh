@@ -22,12 +22,12 @@ exec chromium \
   --app="$URL" \
   --noerrdialogs \
   --disable-infobars \
+  --hide-scrollbars \
   --disable-session-crashed-bubble \
   --overscroll-history-navigation=0 \
   --incognito \
-  --disable-features=TranslateUI \
   --disk-cache-dir=/tmp/chromium-cache \
-  --disable-features=Translate,BackForwardCache,MediaRouter \
+  --disable-features=Translate,TranslateUI,BackForwardCache,MediaRouter \
   --disable-breakpad \
   --disable-sync \
   --disable-background-networking \

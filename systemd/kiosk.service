@@ -2,16 +2,16 @@
 Description=Golden Plate - Kiosk (X11 + Chromium)
 After=kiosk-web.service
 Wants=kiosk-web.service
+StartLimitIntervalSec=0
 
 [Service]
 User=kiosk
 WorkingDirectory=/home/kiosk
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 vt1 -nolisten tcp
+ExecStart=/usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 -nolisten tcp vt7
 
 Restart=always
 RestartSec=2
-StartLimitIntervalSec=0
 TimeoutStartSec=30
 KillMode=mixed
 
