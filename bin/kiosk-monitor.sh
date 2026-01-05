@@ -15,6 +15,11 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# Wenn kiosk.service absichtlich gestoppt ist: nichts tun
+if ! systemctl is-active --quiet kiosk.service; then
+  exit 0
+fi
+
 # Wenn kiosk.service gerade startet, nicht reinfunken (Race vermeiden)
 if systemctl is-activating --quiet kiosk.service; then
   log "kiosk.service startet gerade -> skip"
