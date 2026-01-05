@@ -21,10 +21,12 @@ if ! systemctl is-active --quiet kiosk.service; then
 fi
 
 # Wenn kiosk.service gerade startet, nicht reinfunken (Race vermeiden)
-if systemctl is-activating --quiet kiosk.service; then
-  log "kiosk.service startet gerade -> skip"
+sub="$(systemctl show -p SubState --value kiosk.service 2>/dev/null || true)"
+if [[ "$sub" == "start"* || "$sub" == "auto-restart" ]]; then
+  log "kiosk.service startet gerade (SubState=$sub) -> skip"
   exit 0
 fi
+
 
 # Wenn kiosk.service gerade erst gestartet ist, 5s warten (Chromium Spawn)
 sleep 5

@@ -2,9 +2,9 @@
 set -eu
 
 # X-Energiesparen aus
-xset s off
-xset s noblank
-xset -dpms
+xset s off || true
+xset s noblank || true
+xset -dpms || true
 
 # Cursor ausblenden (optional)
 unclutter -idle 0.3 -root &
@@ -43,4 +43,5 @@ exec chromium \
   --metrics-recording-only \
   --no-default-browser-check \
   --user-data-dir=/home/kiosk/.config/chromium-kiosk \
+  --class=golden-plate-kiosk\
   --mute-audio
