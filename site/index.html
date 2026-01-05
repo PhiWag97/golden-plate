@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Golden Plate Kiosk</title>
+  <style>
+    html,body{height:100%;margin:0;font-family:sans-serif;background:#111;color:#eee}
+    #offline{display:flex;height:100%;align-items:center;justify-content:center;text-align:center;padding:2rem}
+    #panelWrap{display:none;height:100%}
+    iframe{width:100%;height:100%;border:0}
+    .small{opacity:.75;font-size:.9rem;margin-top:1rem}
+  </style>
+</head>
+<body>
+  <div id="offline">
+    <div>
+      <h1>Standardanzeige</h1>
+      <p>RemoteSensor ist aktuell nicht erreichbar.</p>
+      <div class="small" id="status">Prüfe Verbindung …</div>
+    </div>
+  </div>
+
+  <div id="panelWrap">
+    <iframe id="panel" src="about:blank"></iframe>
+  </div>
+
+<script>
+  const REMOTE_URL = "http://192.168.1.123:8080";   // <-- AIDA64 RemoteSensor URL
+  const CHECK_INTERVAL_MS = 2000;
+  const TIMEOUT_MS = 1500;
+
+  const offlineEl = document.getElementById("offline");
+  const panelWrapEl = document.getElementById("panelWrap");
+  const panelEl = document.getElementById("panel");
+  const statusEl = document.getElementById("status");
+
+  let remoteUp = false;
+
+  async function probeRemote() {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    try {
+      // no-cors = reine Erreichbarkeitsprobe (opaque response reicht)
+      await fetch(REMOTE_URL, { mode:"no-cors", cache:"no-store", signal: ctrl.signal });
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  function showOffline(msg) {
+    panelWrapEl.style.display = "none";
+    offlineEl.style.display = "flex";
+    statusEl.textContent = msg;
+    panelEl.src = "about:blank";
+  }
+
+  function showPanel() {
+    offlineEl.style.display = "none";
+    panelWrapEl.style.display = "block";
+    if (panelEl.src !== REMOTE_URL) panelEl.src = REMOTE_URL;
+  }
+
+  async function tick() {
+    const ok = await probeRemote();
+    const now = new Date().toLocaleTimeString();
+
+    if (ok && !remoteUp) { remoteUp = true; showPanel(); }
+    else if (!ok && remoteUp) { remoteUp = false; showOffline(`RemoteSensor nicht erreichbar (Stand ${now}).`); }
+    else if (!ok && !remoteUp) { showOffline(`RemoteSensor nicht erreichbar (Stand ${now}).`); }
+  }
+
+  tick();
+  setInterval(tick, CHECK_INTERVAL_MS);
+</script>
+</body>
+</html>
