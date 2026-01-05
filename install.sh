@@ -9,7 +9,7 @@ SITE_DIR="${GOLDEN_ROOT}/site"
 KIOSK_USER="kiosk"
 
 # === Konfiguration (anpassen) ===
-REMOTE_URL="http://192.168.1.123:8080"
+REMOTE_URL="http://192.168.178.104:1111"
 LOCAL_HOST="127.0.0.1"
 LOCAL_PORT="8088"
 CHECK_INTERVAL_MS="2000"
@@ -34,8 +34,8 @@ require_repo_files() {
       missing=1
     fi
   done
-  if [[ ! -x "${GOLDEN_ROOT}/bin/session.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/session.sh" >&2; missing=1; fi
-  if [[ ! -x "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/kiosk-monitor.sh" >&2; missing=1; fi
+  if [[ ! -f "${GOLDEN_ROOT}/bin/session.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/session.sh" >&2; missing=1; fi
+  if [[ ! -f "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/kiosk-monitor.sh" >&2; missing=1; fi
   if [[ ! -f "${SITE_DIR}/index.html" ]]; then echo "Fehlt: ${SITE_DIR}/index.html" >&2; missing=1; fi
 
   if [[ "${missing}" -ne 0 ]]; then
@@ -79,7 +79,7 @@ configure_xwrapper() {
   mkdir -p /etc/X11
   cat >/etc/X11/Xwrapper.config <<'EOF'
 allowed_users=anybody
-needs_root_rights=no
+needs_root_rights=yes
 EOF
 }
 

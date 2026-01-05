@@ -18,12 +18,14 @@ URL="http://127.0.0.1:8088/"
 # Chromium Kiosk
 exec chromium \
   --kiosk \
+  --no-first-run \
   --app="$URL" \
   --noerrdialogs \
   --disable-infobars \
   --disable-session-crashed-bubble \
   --overscroll-history-navigation=0 \
   --incognito \
+  --disable-features=TranslateUI \
   --disk-cache-dir=/tmp/chromium-cache \
   --disable-features=Translate,BackForwardCache,MediaRouter \
   --disable-breakpad \
@@ -36,4 +38,6 @@ exec chromium \
   --disable-hang-monitor \
   --disable-client-side-phishing-detection \
   --metrics-recording-only \
+  --no-default-browser-check \
+  --user-data-dir=/home/kiosk/.config/chromium-kiosk \
   --mute-audio
