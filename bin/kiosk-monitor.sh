@@ -29,19 +29,21 @@ fi
 # Wenn kiosk.service gerade erst gestartet ist, 5s warten (Chromium Spawn)
 sleep 5
 
-# 1) Chromium vorhanden? (robust: auf das Kiosk-Flag prüfen)
-if ! pgrep -u kiosk -fa '/usr/lib/chromium/chromium' | grep -q -- '--kiosk'; then
-  log "Chromium-Kiosk-Prozess nicht gefunden -> restart kiosk.service"
+# 1) Chromium vorhanden? (konkreter auf unser App-Flag)
+if ! pgrep -u kiosk -f ' --app=http://127.0.0.1:8088/' >/dev/null 2>&1; then
+  log "Chromium-Prozess nicht gefunden -> restart kiosk.service"
   systemctl restart kiosk.service
   exit 0
 fi
 
-# 2) X antwortet?
-if ! timeout "${X_TIMEOUT}"s env DISPLAY="${DISPLAY_NUM}" xset q >/dev/null 2>&1; then
-  log "X-Server antwortet nicht -> restart kiosk.service"
+# 2) X antwortet? (als kiosk + mit XAUTHORITY)
+XAUTH="/home/kiosk/.Xauthority"
+if ! timeout "${X_TIMEOUT}"s sudo -u kiosk env DISPLAY="${DISPLAY_NUM}" XAUTHORITY="${XAUTH}" xset q >/dev/null 2>&1; then
+  log "X-Server antwortet nicht (oder kein XAUTH) -> restart kiosk.service"
   systemctl restart kiosk.service
   exit 0
 fi
+
 
 # 3) Lokale Seite erreichbar?
 if ! curl -fsS --max-time "${HTTP_TIMEOUT}" "${LOCAL_URL}" >/dev/null 2>&1; then
