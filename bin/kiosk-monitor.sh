@@ -15,9 +15,18 @@ if ! flock -n 9; then
   exit 0
 fi
 
-# 1) Chromium vorhanden?
-if ! pgrep -u kiosk -f 'chromium' >/dev/null 2>&1; then
-  log "Chromium-Prozess nicht gefunden -> restart kiosk.service"
+# Wenn kiosk.service gerade startet, nicht reinfunken (Race vermeiden)
+if systemctl is-activating --quiet kiosk.service; then
+  log "kiosk.service startet gerade -> skip"
+  exit 0
+fi
+
+# Wenn kiosk.service gerade erst gestartet ist, 5s warten (Chromium Spawn)
+sleep 5
+
+# 1) Chromium vorhanden? (robust: auf das Kiosk-Flag prüfen)
+if ! pgrep -u kiosk -fa '/usr/lib/chromium/chromium' | grep -q -- '--kiosk'; then
+  log "Chromium-Kiosk-Prozess nicht gefunden -> restart kiosk.service"
   systemctl restart kiosk.service
   exit 0
 fi
