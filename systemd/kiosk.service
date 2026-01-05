@@ -10,6 +10,11 @@ WorkingDirectory=/home/kiosk
 Environment=DISPLAY=:0
 ExecStart=/usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 -nolisten tcp vt7
 
+# startx/xinit endet beim Stop oft mit 1 oder 143 (SIGTERM). Das ist ok.
+SuccessExitStatus=0 1 143
+# optional: SIGKILL nach Timeout explizit erlauben (Default ist meist yes, aber klarer)
+SendSIGKILL=yes
+
 Restart=on-failure
 RestartSec=2
 
