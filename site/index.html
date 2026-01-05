@@ -5,12 +5,34 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Golden Plate Kiosk</title>
   <style>
-    html,body{height:100%;margin:0;font-family:sans-serif;background:#111;color:#eee}
-	*{box-sizing:border-box}
-    #offline{display:flex;height:100%;align-items:center;justify-content:center;text-align:center;padding:2rem}
-    #panelWrap{display:none;height:100%}
-    iframe{width:100%;height:100%;border:0}
-    .small{opacity:.75;font-size:.9rem;margin-top:1rem}
+    html,body{
+		height:100%;
+		margin:0;
+		overflow:hidden;
+		font-family:sans-serif;
+		background:#111;
+		color:#eee
+		}
+    #offline{
+		display:flex;
+		height:100%;
+		align-items:center;
+		justify-content:center;
+		text-align:center;
+		padding:2rem
+		}
+	
+	#offline,#panelWrap{
+	  height:100%;
+	  overflow:hidden;
+		}
+	iframe{
+	  width:100%;
+	  height:100%;
+	  border:0;
+	  display:block;
+		}
+		
   </style>
 </head>
 <body>
