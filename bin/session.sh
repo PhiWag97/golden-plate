@@ -21,6 +21,9 @@ exec chromium \
   --no-first-run \
   --app="$URL" \
   --noerrdialogs \
+  --disable-translate \
+  --lang=de-DE \
+  --accept-lang=de-DE,de,en-US,en \
   --disable-infobars \
   --hide-scrollbars \
   --disable-session-crashed-bubble \
