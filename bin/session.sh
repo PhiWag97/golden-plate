@@ -11,6 +11,7 @@ unclutter -idle 0.3 -root &
 
 # Fensterverwaltung (leicht)
 openbox-session &
+sleep 0.2
 
 # Immer zuerst lokale Seite laden
 URL="http://127.0.0.1:8088/"
