@@ -13,7 +13,7 @@ KIOSK_USER="kiosk"
 : "${LOCAL_HOST:=127.0.0.1}"
 : "${LOCAL_PORT:=8088}"
 : "${CHECK_INTERVAL_MS:=2000}"
-: "${TIMEOUT_MS:=1500}"
+: "${TIMEOUT_MS:=5000}"
 : "${DISABLE_GPU:=false}"
 : "${NEW_HOSTNAME:=}"           # leer = nicht ändern
 # ================================================================================
