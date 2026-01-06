@@ -82,7 +82,7 @@ prompt_config() {
 set_hostname_if_requested() {
   if [[ -n "${NEW_HOSTNAME}" ]]; then
     # einfache Hostname-Validation: a-z0-9 und '-' (1..63), nicht mit '-' starten/enden
-    if [[ "${NEW_HOSTNAME}" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+    if [[ "${NEW_HOSTNAME}" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
       log "Setze Hostname auf '${NEW_HOSTNAME}' …"
       hostnamectl set-hostname "${NEW_HOSTNAME}"
     else
