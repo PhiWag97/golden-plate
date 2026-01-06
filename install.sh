@@ -60,37 +60,26 @@ prompt_config() {
   # Nur interaktiv fragen, wenn stdin ein Terminal ist
   if [[ -t 0 ]]; then
     echo "=== Golden Plate Setup ==="
-    echo "Enter = Default beibehalten"
+    echo "Bitte Remote URL eingeben (Enter = Default):"
     echo
-
-    read -rp "Hostname setzen (leer lassen = unverändert): " input
-    NEW_HOSTNAME="${input:-$NEW_HOSTNAME}"
 
     read -rp "Remote URL [${REMOTE_URL}]: " input
+	if [[ -z "${REMOTE_URL}" ]]; then
+	  echo "Remote URL darf nicht leer sein." >&2
+	  exit 3
+	fi
+	if [[ ! "${REMOTE_URL}" =~ ^https?:// ]]; then
+	  echo "Remote URL muss mit http:// oder https:// beginnen." >&2
+	  exit 3
+	fi
+
     REMOTE_URL="${input:-$REMOTE_URL}"
-
-    read -rp "Local Port [${LOCAL_PORT}]: " input
-    LOCAL_PORT="${input:-$LOCAL_PORT}"
-
-    read -rp "Disable GPU (true/false) [${DISABLE_GPU}]: " input
-    DISABLE_GPU="${input:-$DISABLE_GPU}"
 
     echo
   fi
 }
 
-set_hostname_if_requested() {
-  if [[ -n "${NEW_HOSTNAME}" ]]; then
-    # einfache Hostname-Validation: a-z0-9 und '-' (1..63), nicht mit '-' starten/enden
-    if [[ "${NEW_HOSTNAME}" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
-      log "Setze Hostname auf '${NEW_HOSTNAME}' …"
-      hostnamectl set-hostname "${NEW_HOSTNAME}"
-    else
-      echo "Ungültiger Hostname: '${NEW_HOSTNAME}'" >&2
-      exit 3
-    fi
-  fi
-}
+
 
 install_packages() {
   log "Installiere Pakete …"
@@ -197,7 +186,7 @@ main() {
   require_repo_files
 
   prompt_config
-  set_hostname_if_requested
+
 
   install_packages
   ensure_user
