@@ -1,6 +1,15 @@
 #!/bin/sh
 set -eu
 
+# D-Bus Session-Bus starten (für systemd-kiosk ohne Login)
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  eval "$(dbus-launch --sh-syntax --exit-with-session)"
+fi
+
+# DBUS Guard
+[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || { echo "ERROR: DBUS_SESSION_BUS_ADDRESS empty" >&2; exit 1; }
+echo "LAUNCH: passing DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}" >&2
+
 # X-Energiesparen aus
 xset s off || true
 xset s noblank || true
@@ -17,7 +26,15 @@ sleep 0.2
 URL="http://127.0.0.1:8088/"
 
 # Chromium Kiosk
-exec chromium \
+exec /usr/bin/env -i \
+  DISPLAY="$DISPLAY" \
+  HOME="$HOME" \
+  USER="$USER" \
+  LOGNAME="$LOGNAME" \
+  PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+  DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
+  DBUS_SESSION_BUS_PID="${DBUS_SESSION_BUS_PID:-}" \
+  /usr/lib/chromium/chromium \
   --kiosk \
   --no-first-run \
   --app="$URL" \
@@ -44,5 +61,5 @@ exec chromium \
   --metrics-recording-only \
   --no-default-browser-check \
   --user-data-dir=/home/kiosk/.config/chromium-kiosk \
-  --class=golden-plate-kiosk\
+  --class=golden-plate-kiosk \
   --mute-audio

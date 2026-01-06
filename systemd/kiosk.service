@@ -9,8 +9,6 @@ User=kiosk
 WorkingDirectory=/home/kiosk
 Environment=DISPLAY=:0
 
-# falls irgendwo eine kaputte Adresse gesetzt ist, entfernen
-UnsetEnvironment=DBUS_SESSION_BUS_ADDRESS
 
 ExecStart=/usr/bin/dbus-run-session -- /usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 -nolisten tcp vt7
 
