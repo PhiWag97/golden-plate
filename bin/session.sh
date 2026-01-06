@@ -48,7 +48,7 @@ exec /usr/bin/env -i \
   --overscroll-history-navigation=0 \
   --incognito \
   --disk-cache-dir=/tmp/chromium-cache \
-  --disable-features=Translate,TranslateUI,BackForwardCache,MediaRouter \
+  --disable-features=Translate,TranslateUI,BackForwardCache,MediaRouter,PushMessaging,BackgroundFetch,PeriodicBackgroundSync \
   --disable-breakpad \
   --disable-sync \
   --disable-background-networking \

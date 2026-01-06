@@ -8,14 +8,15 @@ SITE_DIR="${GOLDEN_ROOT}/site"
 
 KIOSK_USER="kiosk"
 
-# === Konfiguration (anpassen) ===
-REMOTE_URL="http://192.168.178.104:1111"
-LOCAL_HOST="127.0.0.1"
-LOCAL_PORT="8088"
-CHECK_INTERVAL_MS="2000"
-TIMEOUT_MS="1500"
-DISABLE_GPU="false"
-# ===============================
+# === Defaults (können per Env überschrieben werden oder interaktiv gesetzt werden) ===
+: "${REMOTE_URL:=http://127.0.0.1:8088}"
+: "${LOCAL_HOST:=127.0.0.1}"
+: "${LOCAL_PORT:=8088}"
+: "${CHECK_INTERVAL_MS:=2000}"
+: "${TIMEOUT_MS:=1500}"
+: "${DISABLE_GPU:=false}"
+: "${NEW_HOSTNAME:=}"           # leer = nicht ändern
+# ================================================================================
 
 need_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -28,19 +29,66 @@ log() { echo "[golden-plate] $*"; }
 
 require_repo_files() {
   local missing=0
+
   for f in kiosk.service kiosk-web.service kiosk-monitor.service kiosk-monitor.timer; do
     if [[ ! -f "${SYSTEMD_DIR}/${f}" ]]; then
       echo "Fehlt: ${SYSTEMD_DIR}/${f}" >&2
       missing=1
     fi
   done
-  if [[ ! -f "${GOLDEN_ROOT}/bin/session.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/session.sh" >&2; missing=1; fi
-  if [[ ! -f "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" ]]; then echo "Fehlt oder nicht ausführbar: ${GOLDEN_ROOT}/bin/kiosk-monitor.sh" >&2; missing=1; fi
-  if [[ ! -f "${SITE_DIR}/index.html" ]]; then echo "Fehlt: ${SITE_DIR}/index.html" >&2; missing=1; fi
+
+  if [[ ! -f "${GOLDEN_ROOT}/bin/session.sh" ]]; then
+    echo "Fehlt: ${GOLDEN_ROOT}/bin/session.sh" >&2
+    missing=1
+  fi
+  if [[ ! -f "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" ]]; then
+    echo "Fehlt: ${GOLDEN_ROOT}/bin/kiosk-monitor.sh" >&2
+    missing=1
+  fi
+  if [[ ! -f "${SITE_DIR}/index.html" ]]; then
+    echo "Fehlt: ${SITE_DIR}/index.html" >&2
+    missing=1
+  fi
 
   if [[ "${missing}" -ne 0 ]]; then
-    echo "Repo ist nicht vollständig. Bitte Struktur/Dateien anlegen (siehe Anleitung) und erneut ausführen." >&2
+    echo "Repo ist nicht vollständig. Bitte Struktur/Dateien anlegen und erneut ausführen." >&2
     exit 2
+  fi
+}
+
+prompt_config() {
+  # Nur interaktiv fragen, wenn stdin ein Terminal ist
+  if [[ -t 0 ]]; then
+    echo "=== Golden Plate Setup ==="
+    echo "Enter = Default beibehalten"
+    echo
+
+    read -rp "Hostname setzen (leer lassen = unverändert): " input
+    NEW_HOSTNAME="${input:-$NEW_HOSTNAME}"
+
+    read -rp "Remote URL [${REMOTE_URL}]: " input
+    REMOTE_URL="${input:-$REMOTE_URL}"
+
+    read -rp "Local Port [${LOCAL_PORT}]: " input
+    LOCAL_PORT="${input:-$LOCAL_PORT}"
+
+    read -rp "Disable GPU (true/false) [${DISABLE_GPU}]: " input
+    DISABLE_GPU="${input:-$DISABLE_GPU}"
+
+    echo
+  fi
+}
+
+set_hostname_if_requested() {
+  if [[ -n "${NEW_HOSTNAME}" ]]; then
+    # einfache Hostname-Validation: a-z0-9 und '-' (1..63), nicht mit '-' starten/enden
+    if [[ "${NEW_HOSTNAME}" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+      log "Setze Hostname auf '${NEW_HOSTNAME}' …"
+      hostnamectl set-hostname "${NEW_HOSTNAME}"
+    else
+      echo "Ungültiger Hostname: '${NEW_HOSTNAME}'" >&2
+      exit 3
+    fi
   fi
 }
 
@@ -48,11 +96,19 @@ install_packages() {
   log "Installiere Pakete …"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
+
+  # Chromium Paketname variiert je nach Distribution (Debian/Ubuntu).
+  # Wir versuchen zuerst 'chromium', dann fallback 'chromium-browser'.
+  local chromium_pkg="chromium"
+  if ! apt-cache show chromium >/dev/null 2>&1; then
+    chromium_pkg="chromium-browser"
+  fi
+
   apt-get install -y --no-install-recommends \
     ca-certificates curl python3 \
-    xserver-xorg xinit openbox x11-xserver-utils \
+    xserver-xorg xinit openbox x11-xserver-utils dbus-x11 \
     unclutter \
-    chromium \
+    "${chromium_pkg}" \
     procps coreutils util-linux
 }
 
@@ -66,12 +122,21 @@ ensure_user() {
   usermod -aG video,audio,input,render "${KIOSK_USER}" || true
 }
 
-ensure_dirs_rights() {
-  log "Setze Rechte unter ${GOLDEN_ROOT} …"
-  mkdir -p "${ETC_DIR}"
-  chown -R "${KIOSK_USER}:${KIOSK_USER}" "${GOLDEN_ROOT}"
-  chmod -R 0755 "${GOLDEN_ROOT}/bin"
+ensure_perms() {
+  log "Setze Ownership/Permissions …"
+
+  # Struktur
+  mkdir -p "${ETC_DIR}" "${SITE_DIR}" "${GOLDEN_ROOT}/bin" "${GOLDEN_ROOT}/systemd"
+
+  # Systembestandteile: root-owned (Hardening)
+  chown -R root:root "${GOLDEN_ROOT}/bin" "${GOLDEN_ROOT}/systemd"
+  chmod 0755 "${GOLDEN_ROOT}/bin" "${GOLDEN_ROOT}/systemd"
   chmod 0755 "${GOLDEN_ROOT}/bin/session.sh" "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" || true
+  chmod 0644 "${GOLDEN_ROOT}/systemd/"*.service "${GOLDEN_ROOT}/systemd/"*.timer 2>/dev/null || true
+
+  # Laufzeit-/Konfig-Daten: kiosk-owned
+  chown -R "${KIOSK_USER}:${KIOSK_USER}" "${ETC_DIR}" "${SITE_DIR}"
+  chmod 0755 "${ETC_DIR}" "${SITE_DIR}"
 }
 
 configure_xwrapper() {
@@ -86,9 +151,13 @@ EOF
 write_env() {
   log "Schreibe ${ETC_DIR}/golden-plate.env …"
   cat >"${ETC_DIR}/golden-plate.env" <<EOF
+# Golden Plate runtime env
 LOCAL_HOST=${LOCAL_HOST}
 LOCAL_PORT=${LOCAL_PORT}
 DISABLE_GPU=${DISABLE_GPU}
+REMOTE_URL=${REMOTE_URL}
+CHECK_INTERVAL_MS=${CHECK_INTERVAL_MS}
+TIMEOUT_MS=${TIMEOUT_MS}
 EOF
   chown "${KIOSK_USER}:${KIOSK_USER}" "${ETC_DIR}/golden-plate.env"
   chmod 0644 "${ETC_DIR}/golden-plate.env"
@@ -126,9 +195,13 @@ enable_services() {
 main() {
   need_root
   require_repo_files
+
+  prompt_config
+  set_hostname_if_requested
+
   install_packages
   ensure_user
-  ensure_dirs_rights
+  ensure_perms
   configure_xwrapper
   write_env
   write_config_json

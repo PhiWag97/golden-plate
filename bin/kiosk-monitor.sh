@@ -2,13 +2,26 @@
 set -euo pipefail
 
 LOCK="/run/kiosk-monitor.lock"
+ENV_FILE="/opt/golden-plate/etc/golden-plate.env"
 
+# Defaults
+LOCAL_HOST="127.0.0.1"
+LOCAL_PORT="8088"
 DISPLAY_NUM=":0"
-LOCAL_URL="http://127.0.0.1:8088/"
 X_TIMEOUT="2"
 HTTP_TIMEOUT="2"
 
 log() { echo "kiosk-monitor: $*"; }
+
+# Env laden (wenn vorhanden)
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+fi
+
+LOCAL_HOST="${LOCAL_HOST:-127.0.0.1}"
+LOCAL_PORT="${LOCAL_PORT:-8088}"
+LOCAL_URL="http://${LOCAL_HOST}:${LOCAL_PORT}/"
 
 exec 9>"$LOCK"
 if ! flock -n 9; then
@@ -27,13 +40,13 @@ if [[ "$sub" == "start"* || "$sub" == "auto-restart" ]]; then
   exit 0
 fi
 
-
-# Wenn kiosk.service gerade erst gestartet ist, 5s warten (Chromium Spawn)
+# Wenn kiosk.service gerade erst gestartet ist, kurz warten (Chromium Spawn)
 sleep 5
 
-# 1) Chromium vorhanden? (konkreter auf unser App-Flag)
-if ! pgrep -u kiosk -f ' --app=http://127.0.0.1:8088/' >/dev/null 2>&1; then
-  log "Chromium-Prozess nicht gefunden -> restart kiosk.service"
+# 1) Chromium vorhanden? (konkret auf unser App-Flag)
+# Achtung: Argument kann je nach Chromium-Version minimal anders gequotet sein; wir matchen den URL-Teil.
+if ! pgrep -u kiosk -f " --app=${LOCAL_URL}" >/dev/null 2>&1; then
+  log "Chromium-Prozess nicht gefunden (erwartet --app=${LOCAL_URL}) -> restart kiosk.service"
   systemctl restart kiosk.service
   exit 0
 fi
@@ -47,11 +60,9 @@ then
   exit 0
 fi
 
-
-
 # 3) Lokale Seite erreichbar?
 if ! curl -fsS --max-time "${HTTP_TIMEOUT}" "${LOCAL_URL}" >/dev/null 2>&1; then
-  log "localhost-Seite nicht erreichbar -> restart kiosk-web.service + kiosk.service"
+  log "localhost-Seite (${LOCAL_URL}) nicht erreichbar -> restart kiosk-web.service + kiosk.service"
   systemctl restart kiosk-web.service
   systemctl restart kiosk.service
   exit 0
