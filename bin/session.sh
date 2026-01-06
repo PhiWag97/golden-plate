@@ -35,8 +35,7 @@ exec /usr/bin/env -i \
   DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
   DBUS_SESSION_BUS_PID="${DBUS_SESSION_BUS_PID:-}" \
   /usr/lib/chromium/chromium \
-  --kiosk \
-  --force-dark-mode \ 
+  --kiosk \ 
   --no-first-run \
   --app="$URL" \
   --noerrdialogs \
