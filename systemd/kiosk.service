@@ -11,7 +11,7 @@ WorkingDirectory=/home/kiosk
 Environment=HOME=/home/kiosk
 Environment=DISPLAY=:0
 
-ExecStart=/usr/bin/dbus-run-session -- /usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 -nolisten tcp vt7
+ExecStart=/usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 -nolisten tcp vt7
 
 # startx/xinit endet beim Stop oft mit 1 oder 143 (SIGTERM). Das ist ok.
 SuccessExitStatus=0 1 143

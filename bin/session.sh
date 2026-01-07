@@ -1,6 +1,12 @@
 #!/bin/sh
 set -eu
 
+# Wenn keine D-Bus Session vorhanden ist: Script einmal unter dbus-run-session neu starten
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -z "${GP_DBUS_STARTED:-}" ]; then
+  export GP_DBUS_STARTED=1
+  exec /usr/bin/dbus-run-session -- "$0" "$@"
+fi
+
 # Guard: Unit sollte DBUS setzen
 [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || { echo "ERROR: DBUS_SESSION_BUS_ADDRESS empty" >&2; exit 1; }
 
