@@ -10,7 +10,7 @@ LOCAL_PORT="8088"
 DISPLAY_NUM=":0"
 X_TIMEOUT="2"
 HTTP_TIMEOUT="2"
-
+START_GRACE_SEC="2"
 
 log() { echo "kiosk-monitor: $*"; }
 
