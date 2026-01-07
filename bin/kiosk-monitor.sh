@@ -10,7 +10,9 @@ LOCAL_PORT="8088"
 DISPLAY_NUM=":0"
 X_TIMEOUT="2"
 HTTP_TIMEOUT="2"
-START_GRACE_SEC="2"
+POST_START_SLEEP="5"
+XAUTHORITY_PATH="/home/kiosk/.Xauthority"
+START_GRACE_SEC="15"
 
 log() { echo "kiosk-monitor: $*"; }
 
@@ -41,7 +43,7 @@ if [[ "$sub" == "start"* || "$sub" == "auto-restart" ]]; then
   exit 0
 fi
 
-sleep 5
+
 # Sleep only if kiosk.service became active very recently (Chromium spawn grace period)
 # ActiveEnterTimestampMonotonic is microseconds since boot when unit entered active state.
 enter_us="$(systemctl show -p ActiveEnterTimestampMonotonic --value kiosk.service 2>/dev/null || echo 0)"
@@ -58,12 +60,12 @@ else
   sleep 3
 fi
 
-# 1) Chromium vorhanden? (konkret auf unser App-Flag)
-# Achtung: Argument kann je nach Chromium-Version minimal anders gequotet sein; wir matchen den URL-Teil.
-if ! pgrep -u kiosk -f -- "--app=${LOCAL_URL}" >/dev/null 2>&1 \
-   && ! pgrep -u kiosk -f -- "--app=${LOCAL_URL_NO_SLASH}" >/dev/null 2>&1
-then
-  log "Chromium-Prozess nicht gefunden (erwartet --app=${LOCAL_URL} or ${LOCAL_URL_NO_SLASH}) -> restart kiosk.service"
+# 1) Chromium vorhanden? (robust; do not depend on --app URL formatting)
+if ! pgrep -u kiosk -x chromium >/dev/null 2>&1 \
+   && ! pgrep -u kiosk -x chromium-browser >/dev/null 2>&1; then
+  log "Chromium-Prozess nicht gefunden (name-based) -> restart kiosk.service"
+  # Debug: show what chromium/chrome processes exist (helps future diagnosis)
+  ps -u kiosk -ww -o pid,args | grep -E 'chromium|chrome' | grep -v grep || true
   systemctl restart kiosk.service
   exit 0
 fi
