@@ -184,10 +184,7 @@ enable_services() {
 main() {
   need_root
   require_repo_files
-
   prompt_config
-
-
   install_packages
   ensure_user
   ensure_perms

@@ -3,7 +3,7 @@ Description=Golden Plate - Run kiosk health monitor periodically
 
 [Timer]
 OnBootSec=60
-OnUnitActiveSec=900
+OnUnitActiveSec=90
 AccuracySec=5
 Unit=kiosk-monitor.service
 

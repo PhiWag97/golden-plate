@@ -5,3 +5,4 @@ After=kiosk.service kiosk-web.service
 [Service]
 Type=oneshot
 ExecStart=/opt/golden-plate/bin/kiosk-monitor.sh
+TimeoutStartSec=60
