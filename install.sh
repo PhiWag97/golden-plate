@@ -30,21 +30,11 @@ log() { echo "[golden-plate] $*"; }
 require_repo_files() {
   local missing=0
 
-  for f in kiosk.service kiosk-web.service kiosk-monitor.service kiosk-monitor.timer; do
-    if [[ ! -f "${SYSTEMD_DIR}/${f}" ]]; then
-      echo "Fehlt: ${SYSTEMD_DIR}/${f}" >&2
-      missing=1
-    fi
-  done
-
   if [[ ! -f "${GOLDEN_ROOT}/bin/session.sh" ]]; then
     echo "Fehlt: ${GOLDEN_ROOT}/bin/session.sh" >&2
     missing=1
   fi
-  if [[ ! -f "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" ]]; then
-    echo "Fehlt: ${GOLDEN_ROOT}/bin/kiosk-monitor.sh" >&2
-    missing=1
-  fi
+
   if [[ ! -f "${SITE_DIR}/index.html" ]]; then
     echo "Fehlt: ${SITE_DIR}/index.html" >&2
     missing=1
@@ -120,7 +110,6 @@ ensure_perms() {
   # Systembestandteile: root-owned (Hardening)
   chown -R root:root "${GOLDEN_ROOT}/bin" "${GOLDEN_ROOT}/systemd"
   chmod 0755 "${GOLDEN_ROOT}/bin" "${GOLDEN_ROOT}/systemd"
-  chmod 0755 "${GOLDEN_ROOT}/bin/session.sh" "${GOLDEN_ROOT}/bin/kiosk-monitor.sh" || true
   chmod 0644 "${GOLDEN_ROOT}/systemd/"*.service "${GOLDEN_ROOT}/systemd/"*.timer 2>/dev/null || true
 
   # Laufzeit-/Konfig-Daten: kiosk-owned
@@ -169,8 +158,6 @@ install_units_via_symlinks() {
   log "Installiere systemd Units via Symlink nach /etc/systemd/system/ …"
   ln -sf "${SYSTEMD_DIR}/kiosk-web.service" /etc/systemd/system/kiosk-web.service
   ln -sf "${SYSTEMD_DIR}/kiosk.service" /etc/systemd/system/kiosk.service
-  ln -sf "${SYSTEMD_DIR}/kiosk-monitor.service" /etc/systemd/system/kiosk-monitor.service
-  ln -sf "${SYSTEMD_DIR}/kiosk-monitor.timer" /etc/systemd/system/kiosk-monitor.timer
 }
 
 enable_services() {
@@ -178,7 +165,6 @@ enable_services() {
   systemctl daemon-reload
   systemctl enable --now kiosk-web.service
   systemctl enable --now kiosk.service
-  systemctl enable --now kiosk-monitor.timer
 }
 
 main() {
@@ -195,7 +181,6 @@ main() {
   enable_services
 
   log "Fertig."
-  log "Status: systemctl status kiosk-web.service kiosk.service kiosk-monitor.timer"
   log "Logs:   journalctl -u kiosk.service -n 200 --no-pager"
 }
 
