@@ -1,9 +1,8 @@
 #!/bin/sh
 set -eu
 
-# DBUS Guard
+# Guard: Unit sollte DBUS setzen
 [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || { echo "ERROR: DBUS_SESSION_BUS_ADDRESS empty" >&2; exit 1; }
-echo "LAUNCH: passing DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}" >&2
 
 # X-Energiesparen aus
 xset s off || true
