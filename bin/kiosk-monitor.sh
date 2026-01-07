@@ -20,8 +20,7 @@ if [[ -f "$ENV_FILE" ]]; then
   source "$ENV_FILE"
 fi
 
-LOCAL_HOST="${LOCAL_HOST:-127.0.0.1}"
-LOCAL_PORT="${LOCAL_PORT:-8088}"
+
 LOCAL_URL="http://${LOCAL_HOST}:${LOCAL_PORT}/"
 LOCAL_URL_NO_SLASH="${LOCAL_URL%/}"
 
@@ -42,6 +41,7 @@ if [[ "$sub" == "start"* || "$sub" == "auto-restart" ]]; then
   exit 0
 fi
 
+sleep 5
 # Sleep only if kiosk.service became active very recently (Chromium spawn grace period)
 # ActiveEnterTimestampMonotonic is microseconds since boot when unit entered active state.
 enter_us="$(systemctl show -p ActiveEnterTimestampMonotonic --value kiosk.service 2>/dev/null || echo 0)"
@@ -55,7 +55,7 @@ if [[ "$enter_us" =~ ^[0-9]+$ ]] && [[ "$now_us" =~ ^[0-9]+$ ]] && (( enter_us >
   fi
 else
   # Fallback: keep a small grace period if monotonic timing isn't available
-  sleep 2
+  sleep 3
 fi
 
 # 1) Chromium vorhanden? (konkret auf unser App-Flag)

@@ -9,7 +9,7 @@ SITE_DIR="${GOLDEN_ROOT}/site"
 KIOSK_USER="kiosk"
 
 # === Defaults (können per Env überschrieben werden oder interaktiv gesetzt werden) ===
-: "${REMOTE_URL:=http://127.0.0.1:8088}"
+: "${REMOTE_URL:=http://192.168.298.104:1111}"
 : "${LOCAL_HOST:=127.0.0.1}"
 : "${LOCAL_PORT:=8088}"
 : "${CHECK_INTERVAL_MS:=2000}"
