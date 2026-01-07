@@ -7,8 +7,9 @@ StartLimitIntervalSec=0
 [Service]
 User=kiosk
 WorkingDirectory=/home/kiosk
-Environment=DISPLAY=:0
 
+Environment=HOME=/home/kiosk
+Environment=DISPLAY=:0
 
 ExecStart=/usr/bin/dbus-run-session -- /usr/bin/startx /opt/golden-plate/bin/session.sh -- :0 -nolisten tcp vt7
 

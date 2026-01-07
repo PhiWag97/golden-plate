@@ -1,11 +1,6 @@
 #!/bin/sh
 set -eu
 
-# D-Bus Session-Bus starten (für systemd-kiosk ohne Login)
-if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
-  eval "$(dbus-launch --sh-syntax --exit-with-session)"
-fi
-
 # DBUS Guard
 [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || { echo "ERROR: DBUS_SESSION_BUS_ADDRESS empty" >&2; exit 1; }
 echo "LAUNCH: passing DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS}" >&2
@@ -55,7 +50,6 @@ exec /usr/bin/env -i \
   --disable-component-update \
   --disable-domain-reliability \
   --disable-prompt-on-repost \
-  --disable-hang-monitor \
   --disable-client-side-phishing-detection \
   --metrics-recording-only \
   --no-default-browser-check \
