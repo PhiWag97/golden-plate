@@ -35,9 +35,8 @@ exec /usr/bin/env -i \
   DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
   DBUS_SESSION_BUS_PID="${DBUS_SESSION_BUS_PID:-}" \
   /usr/lib/chromium/chromium \
-  --kiosk \
+  --kiosk "$URL" \
   --no-first-run \
-  --app="$URL" \
   --noerrdialogs \
   --disable-translate \
   --lang=de-DE \
