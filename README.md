@@ -1,9 +1,6 @@
-# golden-plate
-Kiosk Controller for Banana Pi: Search for a Website in a LAN-Network (Healthcheck + Discovery)
+# GOLDEN PLATE
+A simple Kiosk Service for Banana Pi (ARMBIAN CLI bookworm) with Chromium
 =======
-# kiosk-controller
-
-Kiosk Controller für Banana Pi: findet einen AIDA64 RemoteSensor im LAN (Healthcheck + Discovery) und steuert Firefox im Kiosk-Modus auf einer X11-Session.
 
 ## Installation (Banana Pi)
 
@@ -16,4 +13,5 @@ sudo ./scripts/install.sh
 cd /opt/golden-plate
 sudo git pull
 sudo /opt/golden-plate/venv/bin/pip install -e /opt/golden-plate
-sudo systemctl restart kiosk-web.service
+sudo systemctl reload-daemon
+sudo systemctl restart kiosk.service
